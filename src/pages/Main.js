@@ -5,7 +5,8 @@ import {
   Image,
   Text,
   TextInput,
-  TouchableOpacity
+  TouchableOpacity,
+  Alert
 } from "react-native";
 import MapView, { Marker, Callout } from "react-native-maps";
 import {
@@ -16,6 +17,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
 import api from "../services/api";
+import { connect, disconnect, subscribeToNewDevs } from "../services/socket";
 
 export default function Main({ navigation }) {
   const [devs, setDevs] = useState([]);
@@ -45,14 +47,29 @@ export default function Main({ navigation }) {
     loadInitPosition();
   }, []);
 
-  async function loadDevs() {
+  useEffect(() => {
+    subscribeToNewDevs(dev => setDevs([...devs, dev]));
+  }, [devs]);
+
+  function setupWebSocket() {
+    disconnect();
     const { latitude, longitude } = currentRegion;
-    try {
-      const response = await api.get("/search", {
-        params: { latitude, longitude, techs }
-      });
-      setDevs(response.data);
-    } catch (e) {}
+    connect(latitude, longitude, techs);
+  }
+
+  async function loadDevs() {
+    if (currentRegion) {
+      const { latitude, longitude } = currentRegion;
+      try {
+        const response = await api.get("/search", {
+          params: { latitude, longitude, techs }
+        });
+        setDevs(response.data);
+        setupWebSocket();
+      } catch (e) {
+        Alert.alert("Error", "Unable to connect to server.");
+      }
+    }
   }
 
   function handleRegionChange(region) {
